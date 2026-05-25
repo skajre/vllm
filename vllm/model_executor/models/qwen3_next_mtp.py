@@ -30,6 +30,7 @@ from vllm.model_executor.models.qwen3_next import (
 from vllm.sequence import IntermediateTensors
 from vllm.transformers_utils.configs.qwen3_next import Qwen3NextConfig
 
+from .interfaces import SupportsPP
 from .utils import (
     AutoWeightsLoader,
     is_pp_missing_parameter,
@@ -235,7 +236,7 @@ class Qwen3NextMultiTokenPredictor(nn.Module):
 
 
 @support_torch_compile
-class Qwen3NextMTP(nn.Module, QwenNextMixtureOfExperts):
+class Qwen3NextMTP(nn.Module, SupportsPP, QwenNextMixtureOfExperts):
     packed_modules_mapping = {
         "qkv_proj": [
             "q_proj",
@@ -261,6 +262,13 @@ class Qwen3NextMTP(nn.Module, QwenNextMixtureOfExperts):
         self.config = config
         self.model = Qwen3NextMultiTokenPredictor(
             vllm_config=vllm_config, prefix=maybe_prefix(prefix, "mtp")
+        )
+
+        # Expose the PP profiling helper at the outer wrapper level.
+        # SupportsPP only provides a stub for this method; the real
+        # implementation lives on the inner predictor.
+        self.make_empty_intermediate_tensors = (
+            self.model.make_empty_intermediate_tensors
         )
 
         self.lm_head = ParallelLMHead(
